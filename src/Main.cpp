@@ -1,13 +1,41 @@
 #include "lib/nlohmann/json.hpp"
 #include <cctype>
 #include <cstdlib>
+#include <expected>
 #include <iostream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 using json = nlohmann::json;
 
-json decode_bencoded_value(std::string const& encoded_value) {
+namespace bittorrent {
+namespace errors {
+enum class error_code {
+    // Not an error
+    no_error = 0,
+
+    // Error decoding bencoded value
+    decode,
+    decode_parse,
+    decode_not_handled
+};
+
+struct Error {
+    Error(error_code code, std::string message)
+        : code(code), message(std::move(message)) {}
+    std::string message;
+    error_code code;
+};
+}  // namespace errors
+}  // namespace bittorrent
+
+using Error = bittorrent::errors::Error;
+
+//  Decode a bencoded value
+//  Spec: https://wiki.theory.org/BitTorrentSpecification#Bencoding
+std::expected<json, Error> decode_bencoded_value(
+    std::string const& encoded_value) {
     // strings: <size>:<content>
     if (std::isdigit(encoded_value[0])) {
         size_t colon_index = encoded_value.find(':');
@@ -17,7 +45,9 @@ json decode_bencoded_value(std::string const& encoded_value) {
             std::string str = encoded_value.substr(colon_index + 1, number);
             return json(str);
         } else {
-            throw std::runtime_error("Invalid encoded value: " + encoded_value);
+            return std::unexpected(
+                Error(bittorrent::errors::error_code::decode,
+                      "Invalid encoded value: " + encoded_value));
         }
     }
     // integers: i<number>e
@@ -28,10 +58,14 @@ json decode_bencoded_value(std::string const& encoded_value) {
             int64_t number = std::atoll(number_string.c_str());
             return json(number);
         } else {
-            throw std::runtime_error("Invalid encoded value: " + encoded_value);
+            return std::unexpected(
+                Error(bittorrent::errors::error_code::decode,
+                      "Invalid encoded value: " + encoded_value));
         }
     } else {
-        throw std::runtime_error("Unhandled encoded value: " + encoded_value);
+        return std::unexpected(
+            Error(bittorrent::errors::error_code::decode,
+                  "Unhandled encoded value: " + encoded_value));
     }
 }
 
@@ -50,14 +84,16 @@ int main(int argc, char* argv[]) {
                       << std::endl;
             return 1;
         }
-        // You can use print statements as follows for debugging, they'll be
-        // visible when running tests. std::cout << "Logs from your program will
-        // appear here!" << std::endl;
 
-        // Uncomment this block to pass the first stage
         std::string encoded_value = argv[2];
-        json decoded_value = decode_bencoded_value(encoded_value);
-        std::cout << decoded_value.dump() << std::endl;
+        std::expected<json, Error> decoded_value =
+            decode_bencoded_value(encoded_value);
+        if (!decoded_value) {
+            std::cerr << "Error decoding bencoded value: "
+                      << decoded_value.error().message << std::endl;
+            std::abort();
+        }
+        std::cout << decoded_value.value().dump() << std::endl;
     } else {
         std::cerr << "unknown command: " << command << std::endl;
         return 1;
