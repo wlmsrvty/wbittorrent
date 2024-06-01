@@ -1,5 +1,24 @@
-cmake_minimum_required(VERSION 3.20)
-project(bittorrent-starter-cpp)
-set(CMAKE_CXX_STANDARD 23) # Enable the C++23 standard
-file(GLOB_RECURSE SOURCE_FILES src/*.cpp src/lib/*.hpp)
-add_executable(bittorrent ${SOURCE_FILES})
+cmake_minimum_required(VERSION 3.13)
+
+project(
+  ownbittorrent
+  VERSION 0.1
+  DESCRIPTION "Own bittorrent implementation"
+  LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20) # Enable the C++20 standard
+
+# set the bittorrent library name
+set(BITTORRENT_LIB_NAME bittorrent_library)
+
+include(FetchContent)
+
+# bittorrent library
+add_subdirectory(src)
+
+# cli app
+add_subdirectory(cli)
+
+# tests
+enable_testing()
+add_subdirectory(tests)
