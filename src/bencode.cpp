@@ -119,4 +119,35 @@ nonstd::expected<nlohmann::json, errors::Error> Bencode::decode_bencoded_value(
     auto it = encoded_value.begin();
     return decode(encoded_value, it);
 }
+
+std::string encode(nlohmann::json const& value) {
+    std::string result;
+    if (value.is_string()) {
+        result = std::to_string(value.get<std::string>().size()) + ":" +
+                 value.get<std::string>();
+    } else if (value.is_number_integer()) {
+        result = "i" + std::to_string(value.get<int64_t>()) + "e";
+    } else if (value.is_array()) {
+        result = "l";
+        for (const auto& v : value) {
+            result += encode(v);
+        }
+        result += "e";
+    } else if (value.is_object()) {
+        result = "d";
+        for (auto const& [key, val] : value.items()) {
+            result += encode(key);
+            result += encode(val);
+        }
+        result += "e";
+    }
+    return result;
+}
+
+std::string Bencode::encode_bencoded_value(nlohmann::json const& value) {
+    // Encode a value into bencoded format
+    // Spec: https://wiki.theory.org/BitTorrentSpecification#Bencoding
+    return encode(value);
+}
+
 }  // namespace bittorrent

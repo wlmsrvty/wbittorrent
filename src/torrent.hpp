@@ -21,6 +21,6 @@ class Torrent {
     size_t length;
     std::string name;
     size_t piece_length;
-    std::vector<std::string> pieces;
+    std::string pieces;
 };
 }  // namespace bittorrent

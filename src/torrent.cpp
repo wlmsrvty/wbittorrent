@@ -7,6 +7,9 @@
 namespace bittorrent {
 using errors::Error;
 nonstd::expected<Torrent, errors::Error> Torrent::parse_torrent(
+    // parsing metainfo torrent
+    // https://www.bittorrent.org/beps/bep_0003.html#metainfo-files
+
     std::filesystem::path const& file_path) {
     // read file
     std::ifstream f(file_path);
@@ -27,6 +30,7 @@ nonstd::expected<Torrent, errors::Error> Torrent::parse_torrent(
     torrent.length = dict["info"]["length"];
     torrent.name = dict["info"]["name"];
     torrent.piece_length = dict["info"]["piece length"];
+    torrent.pieces = dict["info"]["pieces"];
 
     return torrent;
 }
