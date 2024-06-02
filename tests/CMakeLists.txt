@@ -19,3 +19,5 @@ target_compile_features(bencode_encode_test PRIVATE cxx_std_20)
 target_link_libraries(bencode_encode_test PRIVATE ${BITTORRENT_LIB_NAME})
 target_link_libraries(bencode_encode_test PRIVATE Catch2::Catch2WithMain)
 add_test(NAME bencode_encode_test COMMAND bencode_encode_test)
+
+add_test(NAME torrent_info_test COMMAND ${CMAKE_SOURCE_DIR}/tests/cli/torrent_info.sh ${CMAKE_BINARY_DIR}/bittorrent ${CMAKE_SOURCE_DIR})
