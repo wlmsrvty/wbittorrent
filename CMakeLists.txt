@@ -6,6 +6,8 @@ project(
   DESCRIPTION "Own bittorrent implementation"
   LANGUAGES CXX)
 
+option(BUILD_TESTS "Build test programs" OFF)
+
 set(CMAKE_CXX_STANDARD 20) # Enable the C++20 standard
 
 # set the bittorrent library name
@@ -20,5 +22,7 @@ add_subdirectory(src)
 add_subdirectory(cli)
 
 # tests
-enable_testing()
-add_subdirectory(tests)
+if (BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
