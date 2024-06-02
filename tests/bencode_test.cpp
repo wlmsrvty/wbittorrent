@@ -1,6 +1,7 @@
 #include "bencode.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <string>
+#include <iostream>
 
 using namespace bittorrent;
 using json = nlohmann::json;
@@ -47,6 +48,12 @@ TEST_CASE("Decoding integers", "[bencode][decode]") {
 
     val = Bencode::decode_bencoded_value("i-0e");
     CHECK_FALSE(val.has_value());
+
+    val = Bencode::decode_bencoded_value("i42");
+    CHECK_FALSE(val.has_value());
+
+    val = Bencode::decode_bencoded_value("i42abce");
+    CHECK_FALSE(val.has_value());
 }
 
 TEST_CASE("Decoding lists", "[bencode][decode]") {
@@ -77,6 +84,12 @@ TEST_CASE("Decoding lists", "[bencode][decode]") {
 
     val = Bencode::decode_bencoded_value("li523e");
     CHECK_FALSE(val.has_value());
+
+    val = Bencode::decode_bencoded_value("li42e");
+    CHECK_FALSE(val.has_value());
+
+    val = Bencode::decode_bencoded_value("lli42ei42ee");
+    CHECK_FALSE(val.has_value());
 }
 
 TEST_CASE("Decoding dicts", "[bencode][decode]") {
@@ -92,4 +105,10 @@ TEST_CASE("Decoding dicts", "[bencode][decode]") {
     val = Bencode::decode_bencoded_value("d5:helloli42ei-5eee");
     CHECK(val.has_value());
     CHECK(val.value() == json({ {"hello", { 42, -5 } } }));
+
+    val = Bencode::decode_bencoded_value("d5:helloli42i-5eee");
+    CHECK_FALSE(val.has_value());
+
+    val = Bencode::decode_bencoded_value("d1:ae");
+    CHECK_FALSE(val.has_value());
 }

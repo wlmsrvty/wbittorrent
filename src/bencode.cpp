@@ -40,17 +40,28 @@ static expected<json, Error> decode(std::string const& encoded_value,
             return nonstd::make_unexpected(
                 Error(errors::error_code::decode_parse,
                       "Invalid encoded value: " + encoded_value));
+
         // Check for leading zeroes: i03e
         if (*it == '0' && std::distance(it, e_index) > 1)
             return nonstd::make_unexpected(
                 Error(errors::error_code::decode_parse,
                       "Invalid encoded value: " + encoded_value));
+
         // Check for negative leading zeroes: i-0e
         if (*it == '-' && (it + 1) != std::end(encoded_value) &&
             *(it + 1) == '0')
             return nonstd::make_unexpected(
                 Error(errors::error_code::decode_parse,
                       "Invalid encoded value: " + encoded_value));
+
+        // Check all digits
+        auto begin = (*it == '-') ? it + 1 : it;
+        auto digits = std::all_of(begin, e_index, isdigit);
+        if (!digits)
+            return nonstd::make_unexpected(
+                Error(errors::error_code::decode_parse,
+                      "Invalid encoded value: " + encoded_value));
+
         auto number_string = std::string(it, e_index);
         int64_t number = std::atoll(number_string.c_str());
         it = e_index + 1;
@@ -89,7 +100,7 @@ static expected<json, Error> decode(std::string const& encoded_value,
         if (it == std::end(encoded_value) || *it != 'e')
             return nonstd::make_unexpected(
                 Error(errors::error_code::decode_parse,
-                    "Invalid encoded value: " + encoded_value));
+                      "Invalid encoded value: " + encoded_value));
         it++;
         return dict;
     }
