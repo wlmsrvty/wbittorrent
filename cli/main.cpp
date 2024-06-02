@@ -1,9 +1,8 @@
+#include "bencode.hpp"
+#include "error.hpp"
 #include "lib/nlohmann/json.hpp"
 #include "lib/nonstd/expected.hpp"
-#include "error.hpp"
-#include "bencode.hpp"
 #include "torrent.hpp"
-
 #include <cctype>
 #include <cstdlib>
 #include <iostream>
@@ -25,6 +24,17 @@ static int torrent_info(std::string const& file_path) {
     std::cout << "Tracker URL: " << torrent.announce << std::endl;
     std::cout << "Length: " << torrent.length << std::endl;
     std::cout << "Info Hash: " << torrent.info_hash() << std::endl;
+
+    std::cout << "Piece Length: " << torrent.piece_length << std::endl;
+
+    std::cout << "Piece Hashes:" << std::endl;
+    auto piece_hashes = torrent.piece_hashes();
+    for (std::string const& hash : piece_hashes) {
+        for (unsigned char c : hash)
+            std::cout << std::setw(2) << std::setfill('0') << std::hex
+                      << static_cast<unsigned int>(c);
+        std::cout << std::endl;
+    }
     return 0;
 }
 
@@ -65,8 +75,7 @@ int main(int argc, char* argv[]) {
         return torrent_info(argv[2]);
     }
 
-
-     else {
+    else {
         std::cerr << "unknown command: " << command << std::endl;
         return 1;
     }
