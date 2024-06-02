@@ -1,7 +1,7 @@
 #include "bencode.hpp"
 #include <catch2/catch_test_macros.hpp>
-#include <string>
 #include <iostream>
+#include <string>
 
 using namespace bittorrent;
 using json = nlohmann::json;
@@ -104,11 +104,23 @@ TEST_CASE("Decoding dicts", "[bencode][decode]") {
 
     val = Bencode::decode_bencoded_value("d5:helloli42ei-5eee");
     CHECK(val.has_value());
-    CHECK(val.value() == json({ {"hello", { 42, -5 } } }));
+    CHECK(val.value() == json({{"hello", {42, -5}}}));
 
     val = Bencode::decode_bencoded_value("d5:helloli42i-5eee");
     CHECK_FALSE(val.has_value());
 
     val = Bencode::decode_bencoded_value("d1:ae");
     CHECK_FALSE(val.has_value());
+
+    val = Bencode::decode_bencoded_value("de");
+    CHECK(val.has_value());
+    CHECK(val.value() == json::object());
+
+    val = Bencode::decode_bencoded_value(
+        "d9:publisher3:bob17:publisher-webpage15:www.example.com18:publisher."
+        "location4:homee");
+    CHECK(val.has_value());
+    CHECK(val.value() == json({{"publisher", "bob"},
+                               {"publisher-webpage", "www.example.com"},
+                               {"publisher.location", "home"}}));
 }
