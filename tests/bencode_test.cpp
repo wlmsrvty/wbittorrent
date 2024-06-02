@@ -5,7 +5,7 @@
 using namespace bittorrent;
 using json = nlohmann::json;
 
-std::string bencode_string(const std::string& str) {
+std::string bencode_string(std::string const& str) {
     return std::to_string(str.size()) + ":" + str;
 }
 
@@ -61,17 +61,35 @@ TEST_CASE("Decoding lists", "[bencode][decode]") {
 
     val = Bencode::decode_bencoded_value("l5:helloli52eee");
     CHECK(val.has_value());
-    CHECK(val.value() == json({"hello", { 52 } }));
+    CHECK(val.value() == json({"hello", {52}}));
 
     val = Bencode::decode_bencoded_value("llee");
     CHECK(val.has_value());
-    CHECK(val.value() == json({ json::array() }));
+    CHECK(val.value() == json({json::array()}));
 
     val = Bencode::decode_bencoded_value("lli4eei5ee");
     CHECK(val.has_value());
-    CHECK(val.value() == json({ { 4 }, 5 }));
+    CHECK(val.value() == json({{4}, 5}));
 
     val = Bencode::decode_bencoded_value("l9:blueberryi609ee");
     CHECK(val.has_value());
-    CHECK(val.value() == json({ "blueberry", 609 }));
+    CHECK(val.value() == json({"blueberry", 609}));
+
+    val = Bencode::decode_bencoded_value("li523e");
+    CHECK_FALSE(val.has_value());
+}
+
+TEST_CASE("Decoding dicts", "[bencode][decode]") {
+    // d<key1><value1>...e
+    auto val = Bencode::decode_bencoded_value("d3:foo3:bar5:helloi52ee");
+    CHECK(val.has_value());
+    CHECK(val.value() == json({{"foo", "bar"}, {"hello", 52}}));
+
+    val = Bencode::decode_bencoded_value("d5:hellolee");
+    CHECK(val.has_value());
+    CHECK(val.value() == json({{"hello", json::array()}}));
+
+    val = Bencode::decode_bencoded_value("d5:helloli42ei-5eee");
+    CHECK(val.has_value());
+    CHECK(val.value() == json({ {"hello", { 42, -5 } } }));
 }

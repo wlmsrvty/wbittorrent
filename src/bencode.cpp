@@ -75,6 +75,25 @@ static expected<json, Error> decode(std::string const& encoded_value,
         return list;
     }
 
+    // dicts: d<key1><value1>...e
+    else if (*it == 'd') {
+        it++;
+        auto dict = json::object();
+        while (it != std::end(encoded_value) && *it != 'e') {
+            auto key = decode(encoded_value, it);
+            if (!key.has_value()) return key;
+            auto val = decode(encoded_value, it);
+            if (!val.has_value()) return val;
+            dict[key.value()] = val.value();
+        }
+        if (it == std::end(encoded_value) || *it != 'e')
+            return nonstd::make_unexpected(
+                Error(errors::error_code::decode_parse,
+                    "Invalid encoded value: " + encoded_value));
+        it++;
+        return dict;
+    }
+
     else {
         return nonstd::make_unexpected(
             Error(errors::error_code::decode,
