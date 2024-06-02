@@ -60,4 +60,16 @@ std::string Torrent::info_hash() const {
              digest[2], digest[3], digest[4]);
     return sha;
 }
+
+    std::vector<std::string> Torrent::piece_hashes() const {
+        std::vector<std::string> result;
+        auto it = pieces.begin();
+        while (it != pieces.end()) {
+            std::string piece_hash(it, it + 20);
+            it += 20;
+            result.push_back(piece_hash);
+        }
+        return result;
+    }
+
 }  // namespace bittorrent
