@@ -14,6 +14,20 @@
 using json = nlohmann::json;
 using Error = bittorrent::errors::Error;
 
+static int torrent_info(std::string const& file_path) {
+    auto get_torrent = bittorrent::Torrent::parse_torrent(file_path);
+    if (get_torrent.has_value() == false) {
+        std::cerr << "Error parsing torrent: " << get_torrent.error().message
+                  << std::endl;
+        return 1;
+    }
+    auto torrent = get_torrent.value();
+    std::cout << "Tracker URL: " << torrent.announce << std::endl;
+    std::cout << "Length: " << torrent.length << std::endl;
+    std::cout << "Info Hash: " << torrent.info_hash() << std::endl;
+    return 0;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " decode <encoded_value>"
@@ -48,15 +62,7 @@ int main(int argc, char* argv[]) {
                       << std::endl;
             return 1;
         }
-        auto get_torrent = bittorrent::Torrent::parse_torrent(argv[2]);
-        if (get_torrent.has_value() == false) {
-            std::cerr << "Error parsing torrent: " << get_torrent.error().message
-                      << std::endl;
-            return 1;
-        }
-        auto torrent = get_torrent.value();
-        std::cout << "Tracker URL: " << torrent.announce << std::endl;
-        std::cout << "Length: " << torrent.length << std::endl;
+        return torrent_info(argv[2]);
     }
 
 

@@ -93,6 +93,10 @@ static expected<json, Error> decode(std::string const& encoded_value,
         while (it != std::end(encoded_value) && *it != 'e') {
             auto key = decode(encoded_value, it);
             if (!key.has_value()) return key;
+            if (key.value().is_string() == false) // key must be a string
+                return nonstd::make_unexpected(
+                    Error(errors::error_code::decode_parse,
+                          "key must be a string: " + key.value().dump()));
             auto val = decode(encoded_value, it);
             if (!val.has_value()) return val;
             dict[key.value()] = val.value();

@@ -13,6 +13,8 @@ class Torrent {
     Torrent() = default;
     static nonstd::expected<Torrent, errors::Error> parse_torrent(
         std::filesystem::path const& file_path);
+    
+    std::string info_hash() const;
 
     // URL to tracker
     std::string announce;
