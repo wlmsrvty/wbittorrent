@@ -11,7 +11,8 @@ enum class error_code {
     // Error decoding bencoded value
     decode,
     decode_parse,
-    decode_not_handled
+    decode_not_handled,
+    decode_eof
 };
 
 struct Error {
