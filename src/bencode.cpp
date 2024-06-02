@@ -30,6 +30,17 @@ nonstd::expected<nlohmann::json, errors::Error> Bencode::decode_bencoded_value(
     else if (encoded_value[0] == 'i') {
         size_t e_index = encoded_value.find('e');
         if (e_index != std::string::npos) {
+            if (e_index > 2 && encoded_value[1] == '0') {
+                return nonstd::make_unexpected(
+                    Error(errors::error_code::decode,
+                          "Invalid encoded value: " + encoded_value));
+            }
+            if (e_index >= 3 && encoded_value[1] == '-' &&
+                encoded_value[2] == '0') {
+                return nonstd::make_unexpected(
+                    Error(errors::error_code::decode,
+                          "Invalid encoded value: " + encoded_value));
+            }
             std::string number_string = encoded_value.substr(1, e_index - 1);
             int64_t number = std::atoll(number_string.c_str());
             return json(number);

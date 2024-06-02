@@ -12,16 +12,39 @@ std::string bencode_string(const std::string& str) {
 TEST_CASE("Decoding strings", "[bencode][decode]") {
     auto expected = "hello";
     auto val = Bencode::decode_bencoded_value(bencode_string(expected));
-    REQUIRE(val.has_value());
-    REQUIRE(val.value() == json(expected));
+    CHECK(val.has_value());
+    CHECK(val.value() == json(expected));
 
     val = Bencode::decode_bencoded_value("1:a");
-    REQUIRE(val.has_value());
-    REQUIRE(val.value() == json("a"));
+    CHECK(val.has_value());
+    CHECK(val.value() == json("a"));
+
+    val = Bencode::decode_bencoded_value("0:");
+    CHECK(val.has_value());
+    CHECK(val.value() == json(""));
 }
 
 TEST_CASE("Decoding integers", "[bencode][decode]") {
     auto val = Bencode::decode_bencoded_value("i3e");
-    REQUIRE(val.has_value());
-    REQUIRE(val.value() == json(3));
+    CHECK(val.has_value());
+    CHECK(val.value() == json(3));
+
+    val = Bencode::decode_bencoded_value("i1251910465e");
+    CHECK(val.has_value());
+    CHECK(val.value() == json(1251910465));
+
+    val = Bencode::decode_bencoded_value("i-52e");
+    CHECK(val.has_value());
+    CHECK(val.value() == json(-52));
+
+    val = Bencode::decode_bencoded_value("i4294967300e");
+    CHECK(val.has_value());
+    CHECK(val.value() == json(4294967300));
+
+    val = Bencode::decode_bencoded_value("i0e");
+    CHECK(val.has_value());
+    CHECK(val.value() == json(0));
+
+    val = Bencode::decode_bencoded_value("i-0e");
+    CHECK_FALSE(val.has_value());
 }
