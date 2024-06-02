@@ -71,6 +71,7 @@ static expected<json, Error> decode(std::string const& encoded_value,
             return nonstd::make_unexpected(
                 Error(errors::error_code::decode_parse,
                       "Invalid encoded value: " + encoded_value));
+        it++;
         return list;
     }
 

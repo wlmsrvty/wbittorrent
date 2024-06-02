@@ -66,4 +66,12 @@ TEST_CASE("Decoding lists", "[bencode][decode]") {
     val = Bencode::decode_bencoded_value("llee");
     CHECK(val.has_value());
     CHECK(val.value() == json({ json::array() }));
+
+    val = Bencode::decode_bencoded_value("lli4eei5ee");
+    CHECK(val.has_value());
+    CHECK(val.value() == json({ { 4 }, 5 }));
+
+    val = Bencode::decode_bencoded_value("l9:blueberryi609ee");
+    CHECK(val.has_value());
+    CHECK(val.value() == json({ "blueberry", 609 }));
 }
