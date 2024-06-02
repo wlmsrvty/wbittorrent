@@ -12,7 +12,9 @@ enum class error_code {
     decode,
     decode_parse,
     decode_not_handled,
-    decode_eof
+    decode_eof,
+
+    parse_torrent
 };
 
 struct Error {

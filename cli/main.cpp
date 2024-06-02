@@ -2,6 +2,7 @@
 #include "lib/nonstd/expected.hpp"
 #include "error.hpp"
 #include "bencode.hpp"
+#include "torrent.hpp"
 
 #include <cctype>
 #include <cstdlib>
@@ -39,7 +40,27 @@ int main(int argc, char* argv[]) {
             std::abort();
         }
         std::cout << decoded_value.value().dump() << std::endl;
-    } else {
+    }
+
+    else if (command == "info") {
+        if (argc < 3) {
+            std::cerr << "Usage: " << argv[0] << " info <torrent file>"
+                      << std::endl;
+            return 1;
+        }
+        auto get_torrent = bittorrent::Torrent::parse_torrent(argv[2]);
+        if (get_torrent.has_value() == false) {
+            std::cerr << "Error parsing torrent: " << get_torrent.error().message
+                      << std::endl;
+            return 1;
+        }
+        auto torrent = get_torrent.value();
+        std::cout << "Tracker URL: " << torrent.announce << std::endl;
+        std::cout << "Length: " << torrent.length << std::endl;
+    }
+
+
+     else {
         std::cerr << "unknown command: " << command << std::endl;
         return 1;
     }
