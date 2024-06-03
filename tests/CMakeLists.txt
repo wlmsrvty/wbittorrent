@@ -20,4 +20,5 @@ target_link_libraries(bencode_encode_test PRIVATE ${BITTORRENT_LIB_NAME})
 target_link_libraries(bencode_encode_test PRIVATE Catch2::Catch2WithMain)
 add_test(NAME bencode_encode_test COMMAND bencode_encode_test)
 
-add_test(NAME cli_torrent_info_test COMMAND ${CMAKE_SOURCE_DIR}/tests/cli/torrent_info.sh ${CMAKE_BINARY_DIR}/bittorrent ${CMAKE_SOURCE_DIR})
+add_test(NAME cli_torrent_info_test     COMMAND ${CMAKE_SOURCE_DIR}/tests/cli/torrent_info.sh ${CMAKE_BINARY_DIR}/bittorrent ${CMAKE_SOURCE_DIR})
+add_test(NAME cli_discover_peers_test   COMMAND ${CMAKE_SOURCE_DIR}/tests/cli/discover_peers.sh ${CMAKE_BINARY_DIR}/bittorrent ${CMAKE_SOURCE_DIR})
