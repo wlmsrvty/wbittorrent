@@ -16,11 +16,15 @@ class Torrent {
     static nonstd::expected<Torrent, errors::Error> parse_torrent(
         std::filesystem::path const& file_path);
 
-    // Returns a 40-character string of SHA1 hash of info key
+    // Returns SHA1 of the info dictionary
+    std::vector<uint8_t> info_hash_raw() const;
     std::string info_hash() const;
 
     // Returns a vector of 20-byte SHA1 hashes
     std::vector<std::string> piece_hashes() const;
+
+    // Request tracker for peers
+    nlohmann::json discover_peers() const;
 
     // URL to tracker
     std::string announce;

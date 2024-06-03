@@ -29,12 +29,26 @@ static int torrent_info(std::string const& file_path) {
 
     std::cout << "Piece Hashes:" << std::endl;
     auto piece_hashes = torrent.piece_hashes();
+    auto cout_flags = std::cout.flags();
     for (std::string const& hash : piece_hashes) {
         for (unsigned char c : hash)
             std::cout << std::setw(2) << std::setfill('0') << std::hex
                       << static_cast<unsigned int>(c);
         std::cout << std::endl;
+    std::cout.flags(cout_flags);
     }
+    return 0;
+}
+
+static int discover_peers(const std::string& file_path) {
+    auto get_torrent = bittorrent::Torrent::parse_torrent(file_path);
+    if (get_torrent.has_value() == false) {
+        std::cerr << "Error parsing torrent: " << get_torrent.error().message
+                  << std::endl;
+        return 1;
+    }
+    auto torrent = get_torrent.value();
+    auto tracker_info = torrent.discover_peers();
     return 0;
 }
 
@@ -73,6 +87,15 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         return torrent_info(argv[2]);
+    }
+
+    else if (command == "peers") {
+        if (argc < 3) {
+            std::cerr << "Usage: " << argv[0] << " peers <torrent file>"
+                      << std::endl;
+            return 1;
+        }
+        return discover_peers(argv[2]);
     }
 
     else {
