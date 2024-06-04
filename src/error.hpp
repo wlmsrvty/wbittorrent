@@ -29,6 +29,13 @@ enum class error_code_enum {
     discover_peers_http,
     discover_peers_invalid_announce_url,
 
+    // error during socket creation
+    peer_socket,
+    peer_close,
+    peer_connect,
+    peer_send,
+    peer_recv,
+
     parse_torrent
 };
 

@@ -6,6 +6,8 @@ project(
   DESCRIPTION "Own bittorrent implementation"
   LANGUAGES CXX)
 
+add_compile_options(-Wall -Wextra -pedantic -Werror)
+
 option(BUILD_TESTS "Build test programs" OFF)
 
 set(CMAKE_CXX_STANDARD 20) # Enable the C++20 standard

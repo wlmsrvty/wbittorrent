@@ -66,9 +66,10 @@ static int handshake(std::string const& torrent_path, std::string const& peer) {
     std::string peer_ip = peer.substr(0, peer.find(':'));
     std::string peer_port_str = peer.substr(peer.find(':') + 1);
     uint16_t peer_port = std::stoi(peer_port_str);
-    bittorrent::Peer p(peer_ip, peer_port);
-    p.handshake(torrent.info_hash_raw());
 
+    bittorrent::Peer p(peer_ip, peer_port);
+    p.establish_connection();
+    p.handshake(torrent.info_hash_raw());
     return 0;
 }
 

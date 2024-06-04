@@ -1,4 +1,5 @@
 #include "peer.hpp"
+#include "error.hpp"
 #include <arpa/inet.h>
 #include <iomanip>
 #include <iostream>
@@ -11,9 +12,10 @@ namespace bittorrent {
 
 using namespace std::string_literals;
 
-Peer::Peer(std::string ip, uint16_t port) : ip_(ip), port_(port) {}
-inline std::string const Peer::ip_get() const { return ip_; }
-inline uint16_t const Peer::port_get() const { return port_; }
+Peer::Peer(std::string ip, uint16_t port)
+    : socket_fd(-1), ip_(ip), port_(port) {}
+
+Peer::~Peer() { this->closeSocket(); }
 
 static std::string handshake_message(std::vector<uint8_t> const& info_hash_raw,
                                      std::string const& peer_id) {
@@ -29,6 +31,45 @@ static std::string handshake_message(std::vector<uint8_t> const& info_hash_raw,
         digest_str + peer_id;
     return handshake_message;
 }
+
+std::error_code Peer::createSocket() {
+    if (socket_fd != -1) return {};
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd <= 0)
+        return errors::make_error_code(errors::error_code_enum::peer_socket);
+    socket_fd = fd;
+    return {};
+}
+
+std::error_code Peer::closeSocket() {
+    if (socket_fd == -1) return {};
+    if (::close(socket_fd) != 0) {
+        socket_fd = -1;
+        return errors::make_error_code(errors::error_code_enum::peer_close);
+    }
+    socket_fd = -1;
+    return {};
+}
+
+std::error_code Peer::connect() {
+    struct sockaddr_in server_address;
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(port_);
+    server_address.sin_addr.s_addr = inet_addr(ip_.c_str());
+
+    if (::connect(socket_fd, (struct sockaddr*)&server_address,
+                  sizeof(server_address)) < 0)
+        return errors::make_error_code(errors::error_code_enum::peer_connect);
+    return {};
+}
+
+std::error_code Peer::establish_connection() {
+    std::error_code ec = createSocket();
+    if (ec) return ec;
+    return connect();
+}
+
+std::error_code Peer::close_connection() { return closeSocket(); }
 
 static std::string parse_peer_id(std::string const& message) {
     static std::string const header = "\x13"s +  // character 19
@@ -46,50 +87,25 @@ static std::string parse_peer_id(std::string const& message) {
     return ss.str();
 }
 
-void Peer::handshake(std::vector<uint8_t> const& info_hash_raw) const {
-    int const socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd <= 0) {
-        std::cerr << "Failed creating socket" << std::endl;
-        return;
-    }
-
-    struct sockaddr_in server_address = {0};
-    server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(port_get());
-    server_address.sin_addr.s_addr = inet_addr(ip_get().c_str());
-
-    if (connect(socket_fd, (struct sockaddr*)&server_address,
-                sizeof(server_address)) < 0) {
-        std::cerr << "Failed to connect to peer" << std::endl;
-        return;
-    }
-
+std::error_code Peer::handshake(std::vector<uint8_t> const& info_hash_raw) {
     // Send the message to server:
     std::string message =
         handshake_message(info_hash_raw, "00112233445566778899");
 
-    if (send(socket_fd, message.c_str(), message.size(), 0) < 0) {
-        std::cerr << "Unable to send message" << std::endl;
-        return;
-    }
+    if (send(socket_fd, message.c_str(), message.size(), 0) < 0)
+        return errors::make_error_code(errors::error_code_enum::peer_send);
 
     // Receive the server's response:
     unsigned char response[68];
-    if (recv(socket_fd, response, sizeof(response), 0) < 0) {
-        std::cerr << "Unable to receive message" << std::endl;
-        return;
-    }
+    if (recv(socket_fd, response, sizeof(response), 0) < 0)
+        return errors::make_error_code(errors::error_code_enum::peer_recv);
     std::string response_str =
         std::string(reinterpret_cast<char*>(response), sizeof(response));
 
     std::string peer_id = parse_peer_id(response_str);
     std::cout << "Peer ID: " << peer_id << std::endl;
 
-    if (close(socket_fd) != 0) {
-        std::cerr << "Error closing socket"
-                  << "\n";
-        return;
-    }
+    return {};
 }
 
 }  // namespace bittorrent
