@@ -2,7 +2,9 @@
 #include "error.hpp"
 #include "lib/nlohmann/json.hpp"
 #include "lib/nonstd/expected.hpp"
+#include "peer.hpp"
 #include "torrent.hpp"
+
 #include <cctype>
 #include <cstdlib>
 #include <iostream>
@@ -35,12 +37,12 @@ static int torrent_info(std::string const& file_path) {
             std::cout << std::setw(2) << std::setfill('0') << std::hex
                       << static_cast<unsigned int>(c);
         std::cout << std::endl;
-    std::cout.flags(cout_flags);
+        std::cout.flags(cout_flags);
     }
     return 0;
 }
 
-static int discover_peers(const std::string& file_path) {
+static int discover_peers(std::string const& file_path) {
     auto get_torrent = bittorrent::Torrent::parse_torrent(file_path);
     if (get_torrent.has_value() == false) {
         std::cerr << "Error parsing torrent: " << get_torrent.error().message
@@ -49,6 +51,23 @@ static int discover_peers(const std::string& file_path) {
     }
     auto torrent = get_torrent.value();
     auto tracker_info = torrent.discover_peers();
+    return 0;
+}
+
+static int handshake(std::string const& torrent_path, std::string const& peer) {
+    auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path);
+    if (get_torrent.has_value() == false) {
+        std::cerr << "Error parsing torrent: " << get_torrent.error().message
+                  << std::endl;
+        return 1;
+    }
+    auto torrent = get_torrent.value();
+    std::string peer_ip = peer.substr(0, peer.find(':'));
+    std::string peer_port_str = peer.substr(peer.find(':') + 1);
+    uint16_t peer_port = std::stoi(peer_port_str);
+    bittorrent::Peer p(peer_ip, peer_port);
+    p.handshake(torrent.info_hash_raw());
+
     return 0;
 }
 
@@ -96,6 +115,16 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         return discover_peers(argv[2]);
+    }
+
+    else if (command == "handshake") {
+        if (argc < 4) {
+            std::cerr << "Usage: " << argv[0]
+                      << " handshake <torrent file> <peer_ip>:<peer_port>"
+                      << std::endl;
+            return 1;
+        }
+        return handshake(argv[2], argv[3]);
     }
 
     else {
