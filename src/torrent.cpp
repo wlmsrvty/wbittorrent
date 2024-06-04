@@ -5,33 +5,31 @@
 #include "lib/sha1.hpp"
 #include "lib/utils.hpp"
 #include "tracker_info.hpp"
-
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <regex>
 #include <string>
 
 namespace bittorrent {
-using errors::Error;
 
-nonstd::expected<Torrent, errors::Error> Torrent::parse_torrent(
+std::optional<Torrent> Torrent::parse_torrent(
+    std::filesystem::path const& file_path, std::error_code& ec) {
     // parsing metainfo torrent
     // https://www.bittorrent.org/beps/bep_0003.html#metainfo-files
-
-    std::filesystem::path const& file_path) {
     // read file
     std::ifstream f(file_path);
-    if (!f.good())
-        return nonstd::make_unexpected(
-            Error(errors::error_code::parse_torrent, "Error reading file"));
+    if (!f.good()) {
+        ec = errors::make_error_code(errors::error_code_enum::parse_torrent);
+        return {};
+    }
     std::stringstream buffer;
     buffer << f.rdbuf();
 
     // parse bencoded dict
-    auto encoded_value = Bencode::decode_bencoded_value(buffer.str());
-    if (!encoded_value.has_value())
-        return nonstd::make_unexpected(encoded_value.error());
-    auto dict = encoded_value.value();
+    auto encoded_value = Bencode::decode_bencoded_value(buffer.str(), ec);
+    if (ec) return {};
+    auto dict = encoded_value;
 
     Torrent torrent;
     torrent.announce = dict["announce"];
@@ -94,11 +92,13 @@ std::vector<std::string> Torrent::piece_hashes() const {
     return result;
 }
 
-nlohmann::json Torrent::discover_peers() const {
-    static const std::regex re(
+std::optional<TrackerInfo> Torrent::discover_peers(std::error_code& ec) const {
+    static std::regex const re(
         R"(^((?:(https?):)?(?://([^:/?#]*)(?::(\d+))?)?)(([^?#]*(?:\?[^#]*)?)(?:#.*)?))");
     std::smatch matches;
     if (!std::regex_match(announce, matches, re)) {
+        ec = errors::make_error_code(
+            errors::error_code_enum::discover_peers_invalid_announce_url);
         return {};
     }
     std::string base_url = matches[1].str();
@@ -111,7 +111,7 @@ nlohmann::json Torrent::discover_peers() const {
     std::string digest_2 = utils::url_encode(digest_str);
     tracker_url += "?info_hash=" + digest_2;
 
-    const static std::string_view peer_id = "00112233445566778899";
+    static std::string_view const peer_id = "00112233445566778899";
     tracker_url += "&peer_id=" + std::string(peer_id);
 
     // port the client is listening on
@@ -137,21 +137,21 @@ nlohmann::json Torrent::discover_peers() const {
     httplib::Client cli(base_url);
     auto res = cli.Get(tracker_url);
     if (!res) {
+        ec = errors::make_error_code(
+            errors::error_code_enum::discover_peers_http);
         return {};
     }
 
-    auto tracker_response = Bencode::decode_bencoded_value(res->body);
-    if (tracker_response.has_value() == false) {
-        return {};
-    }
+    auto tracker_response = Bencode::decode_bencoded_value(res->body, ec);
+    if (ec) return {};
 
-    nlohmann::json val = tracker_response.value();
-    TrackerInfo tracker_info = TrackerInfo::parse_tracker_response(val);
-    for (const std::string& peer : tracker_info.peers) {
+    TrackerInfo tracker_info =
+        TrackerInfo::parse_tracker_response(tracker_response);
+    for (std::string const& peer : tracker_info.peers) {
         std::cout << peer << std::endl;
     }
 
-    return tracker_response.value();
+    return tracker_info;
 }
 
 }  // namespace bittorrent

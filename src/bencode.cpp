@@ -2,27 +2,27 @@
 #include "error.hpp"
 
 using json = nlohmann::json;
-using Error = bittorrent::errors::Error;
-using nonstd::expected;
 
 namespace bittorrent {
-static expected<json, Error> decode(std::string const& encoded_value,
-                                    std::string::const_iterator& it) {
-    // Decode a bencoded value
-    // Spec: https://wiki.theory.org/BitTorrentSpecification#Bencoding
+
+static nlohmann::json decode(std::string const& encoded_value,
+                             std::string::const_iterator& it,
+                             std::error_code& ec) {
     if (it == encoded_value.end()) {
-        return nonstd::make_unexpected(
-            Error(errors::error_code::decode_eof, "Unexpected end of input"));
+        ec = errors::make_error_code(
+            errors::error_code_enum::bencode_decode_parse_eof);
+        return {};
     }
 
     // strings: <size>:<content>
     // 4:spam -> "spam"
     if (std::isdigit(*it)) {
         auto colon_index = std::find(it, std::end(encoded_value), ':');
-        if (colon_index == std::end(encoded_value))
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+        if (colon_index == std::end(encoded_value)) {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_string);
+            return {};
+        }
         std::string size_string = std::string(it, colon_index);
         int64_t number = std::atoll(size_string.c_str());
         std::string str =
@@ -36,31 +36,35 @@ static expected<json, Error> decode(std::string const& encoded_value,
     else if (*it == 'i') {
         it++;
         auto e_index = std::find(it, std::end(encoded_value), 'e');
-        if (e_index == std::end(encoded_value))
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+        if (e_index == std::end(encoded_value)) {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_integer);
+            return {};
+        }
 
         // Check for leading zeroes: i03e
-        if (*it == '0' && std::distance(it, e_index) > 1)
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+        if (*it == '0' && std::distance(it, e_index) > 1) {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_integer);
+            return {};
+        }
 
         // Check for negative leading zeroes: i-0e
         if (*it == '-' && (it + 1) != std::end(encoded_value) &&
-            *(it + 1) == '0')
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+            *(it + 1) == '0') {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_integer);
+            return {};
+        }
 
         // Check all digits
         auto begin = (*it == '-') ? it + 1 : it;
         auto digits = std::all_of(begin, e_index, isdigit);
-        if (!digits)
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+        if (!digits) {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_integer);
+            return {};
+        }
 
         auto number_string = std::string(it, e_index);
         int64_t number = std::atoll(number_string.c_str());
@@ -74,14 +78,15 @@ static expected<json, Error> decode(std::string const& encoded_value,
         it++;
         auto list = json::array();
         while (it != std::end(encoded_value) && *it != 'e') {
-            auto val = decode(encoded_value, it);
-            if (!val.has_value()) return val;
-            list.push_back(val.value());
+            auto val = decode(encoded_value, it, ec);
+            if (ec) return {};
+            list.push_back(val);
         }
-        if (it == std::end(encoded_value) || *it != 'e')
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+        if (it == std::end(encoded_value) || *it != 'e') {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_list);
+            return {};
+        }
         it++;
         return list;
     }
@@ -91,37 +96,40 @@ static expected<json, Error> decode(std::string const& encoded_value,
         it++;
         auto dict = json::object();
         while (it != std::end(encoded_value) && *it != 'e') {
-            auto key = decode(encoded_value, it);
-            if (!key.has_value()) return key;
-            if (key.value().is_string() == false) // key must be a string
-                return nonstd::make_unexpected(
-                    Error(errors::error_code::decode_parse,
-                          "key must be a string: " + key.value().dump()));
-            auto val = decode(encoded_value, it);
-            if (!val.has_value()) return val;
-            dict[key.value()] = val.value();
+            auto key = decode(encoded_value, it, ec);
+            if (ec) return {};
+            if (key.is_string() == false)  // key must be a string
+            {
+                ec = errors::make_error_code(
+                    errors::error_code_enum::bencode_decode_parse_dict_key);
+                return {};
+            }
+            auto val = decode(encoded_value, it, ec);
+            if (ec) return {};
+            dict[key] = val;
         }
-        if (it == std::end(encoded_value) || *it != 'e')
-            return nonstd::make_unexpected(
-                Error(errors::error_code::decode_parse,
-                      "Invalid encoded value: " + encoded_value));
+        if (it == std::end(encoded_value) || *it != 'e') {
+            ec = errors::make_error_code(
+                errors::error_code_enum::bencode_decode_parse_dict);
+            return {};
+        }
         it++;
         return dict;
     }
 
     else {
-        return nonstd::make_unexpected(
-            Error(errors::error_code::decode,
-                  "Unhandled encoded value: " + encoded_value));
+        ec = errors::make_error_code(
+            errors::error_code_enum::bencode_decode_invalid);
+        return {};
     }
 }
 
-nonstd::expected<nlohmann::json, errors::Error> Bencode::decode_bencoded_value(
-    std::string const& encoded_value) {
+nlohmann::json Bencode::decode_bencoded_value(std::string const& encoded_value,
+                                              std::error_code& ec) {
     // Decode a bencoded value
     // Spec: https://wiki.theory.org/BitTorrentSpecification#Bencoding
     auto it = encoded_value.begin();
-    return decode(encoded_value, it);
+    return decode(encoded_value, it, ec);
 }
 
 std::string encode(nlohmann::json const& value) {
@@ -133,7 +141,7 @@ std::string encode(nlohmann::json const& value) {
         result = "i" + std::to_string(value.get<int64_t>()) + "e";
     } else if (value.is_array()) {
         result = "l";
-        for (const auto& v : value) {
+        for (auto const& v : value) {
             result += encode(v);
         }
         result += "e";

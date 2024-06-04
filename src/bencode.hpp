@@ -7,8 +7,8 @@
 namespace bittorrent {
 class Bencode {
    public:
-    static nonstd::expected<nlohmann::json, bittorrent::errors::Error>
-    decode_bencoded_value(std::string const& encoded_value);
+    static nlohmann::json decode_bencoded_value(
+        std::string const& encoded_value, std::error_code& ec);
 
     static std::string encode_bencoded_value(nlohmann::json const& value);
 };

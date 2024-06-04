@@ -4,7 +4,6 @@
 #include "lib/nonstd/expected.hpp"
 #include "peer.hpp"
 #include "torrent.hpp"
-
 #include <cctype>
 #include <cstdlib>
 #include <iostream>
@@ -13,13 +12,12 @@
 #include <vector>
 
 using json = nlohmann::json;
-using Error = bittorrent::errors::Error;
 
 static int torrent_info(std::string const& file_path) {
-    auto get_torrent = bittorrent::Torrent::parse_torrent(file_path);
+    std::error_code ec;
+    auto get_torrent = bittorrent::Torrent::parse_torrent(file_path, ec);
     if (get_torrent.has_value() == false) {
-        std::cerr << "Error parsing torrent: " << get_torrent.error().message
-                  << std::endl;
+        std::cerr << "Error parsing torrent: " << ec << std::endl;
         return 1;
     }
     auto torrent = get_torrent.value();
@@ -43,22 +41,25 @@ static int torrent_info(std::string const& file_path) {
 }
 
 static int discover_peers(std::string const& file_path) {
-    auto get_torrent = bittorrent::Torrent::parse_torrent(file_path);
-    if (get_torrent.has_value() == false) {
-        std::cerr << "Error parsing torrent: " << get_torrent.error().message
-                  << std::endl;
+    std::error_code ec;
+    auto torrent = bittorrent::Torrent::parse_torrent(file_path, ec);
+    if (torrent.has_value() == false) {
+        std::cerr << "Error parsing torrent: " << ec << std::endl;
         return 1;
     }
-    auto torrent = get_torrent.value();
-    auto tracker_info = torrent.discover_peers();
+    auto tracker_info = torrent.value().discover_peers(ec);
+    if (ec) {
+        std::cerr << "Error discovering peers: " << ec << std::endl;
+        return 1;
+    }
     return 0;
 }
 
 static int handshake(std::string const& torrent_path, std::string const& peer) {
-    auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path);
+    std::error_code ec;
+    auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path, ec);
     if (get_torrent.has_value() == false) {
-        std::cerr << "Error parsing torrent: " << get_torrent.error().message
-                  << std::endl;
+        std::cerr << "Error parsing torrent: " << ec << std::endl;
         return 1;
     }
     auto torrent = get_torrent.value();
@@ -88,15 +89,15 @@ int main(int argc, char* argv[]) {
         }
 
         std::string encoded_value = argv[2];
-        nonstd::expected<json, Error> decoded_value =
-            bittorrent::Bencode::decode_bencoded_value(encoded_value);
+        std::error_code ec;
+        auto decoded_value =
+            bittorrent::Bencode::decode_bencoded_value(encoded_value, ec);
 
-        if (!decoded_value) {
-            std::cerr << "Error decoding bencoded value: "
-                      << decoded_value.error().message << std::endl;
-            std::abort();
+        if (ec) {
+            std::cerr << "Error decoding bencoded value: " << ec << std::endl;
+            return 1;
         }
-        std::cout << decoded_value.value().dump() << std::endl;
+        std::cout << decoded_value.dump() << std::endl;
     }
 
     else if (command == "info") {
