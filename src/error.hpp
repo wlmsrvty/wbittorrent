@@ -41,6 +41,9 @@ enum class error_code_enum {
     message_type_not_handled,
     message_expected_bitfield,
 
+    piece_invalid_index,
+    piece_hash_mismatch,
+
     parse_torrent
 };
 

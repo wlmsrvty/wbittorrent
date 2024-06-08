@@ -60,8 +60,8 @@ static std::error_code send_all(int socket_fd, size_t size, u_int8_t* buffer) {
 
 // ===== Peer =====
 
-Peer::Peer(std::string ip, uint16_t port)
-    : socket_fd(-1), ip_(ip), port_(port), is_choked(true) {}
+Peer::Peer(std::string ip, uint16_t port, Torrent const& torrent)
+    : socket_fd(-1), ip_(ip), port_(port), is_choked(true), torrent(torrent) {}
 
 Peer::~Peer() { this->closeSocket(); }
 
@@ -165,8 +165,7 @@ std::optional<Message> Peer::read_message_raw(std::error_code& ec) {
     if (ec) return {};
 
     uint32_t message_length =
-        ntohl(*reinterpret_cast<uint32_t*>(length)) -
-        1;  // payload length
+        ntohl(*reinterpret_cast<uint32_t*>(length)) - 1;  // payload length
 
     std::vector<u_int8_t> message_id_buffer = recv_all(socket_fd, 1, ec);
     if (ec) return {};
@@ -201,13 +200,34 @@ std::error_code Peer::send_message(Message const& message) {
     return {};
 }
 
-std::error_code Peer::download_file(Torrent const& torrent,
-                                    std::string const& file_path) {
+std::error_code Peer::interested_unchoke() {
     if (socket_fd == -1)
         return errors::make_error_code(
             errors::error_code_enum::peer_no_connection);
 
-    // wait for bitfield message
+    if (!is_choked) return {};
+
+    std::error_code ec = send_message(Message::INTERESTED);
+    if (ec) return ec;
+
+    auto get_message = read_message_raw(ec);
+    if (get_message.has_value() == false) return ec;
+
+    Message message = get_message.value();
+    if (message.type != message_type::unchoke) {
+        return errors::make_error_code(
+            errors::error_code_enum::message_type_not_handled);
+    }
+
+    is_choked = false;
+    return {};
+}
+
+std::error_code Peer::recv_bitfield() {
+    if (socket_fd == -1)
+        return errors::make_error_code(
+            errors::error_code_enum::peer_no_connection);
+
     std::error_code ec;
     auto get_message = read_message_raw(ec);
     if (get_message.has_value() == false) return ec;
@@ -218,56 +238,79 @@ std::error_code Peer::download_file(Torrent const& torrent,
             errors::error_code_enum::message_expected_bitfield);
     }
 
+    return {};
+}
+
+std::error_code Peer::download_file(std::string const& file_path) {
+    if (socket_fd == -1)
+        return errors::make_error_code(
+            errors::error_code_enum::peer_no_connection);
+
+    // wait for bitfield message
+    std::error_code ec;
+    ec = recv_bitfield();
+    if (ec) return ec;
+
     // TODO: read bitfield message to check available pieces for this peer
 
     // send interested message
-    message = Message::INTERESTED;
-    ec = send_message(message);
+    ec = interested_unchoke();
     if (ec) return ec;
 
-    // receive unchoke message
-    get_message = read_message_raw(ec);
-    if (get_message.has_value() == false) return ec;
-    message = get_message.value();
+    // TODO: download all pieces
+    (void)file_path;
 
-    if (message.type != message_type::unchoke) {
-        return errors::make_error_code(
-            errors::error_code_enum::message_type_not_handled);
+    return {};
+}
+
+std::vector<uint8_t> Peer::download_piece(size_t piece_index,
+                                          std::error_code& ec) {
+    if (socket_fd == -1) {
+        ec = errors::make_error_code(
+            errors::error_code_enum::peer_no_connection);
+        return {};
     }
-    is_choked = false;
 
-    // unsigned long number_blocks_in_piece = torrent.piece_length / BLOCK_SIZE;
+    auto pieces = torrent.piece_hashes();
 
-    // download pieces
+    if (piece_index >= torrent.piece_hashes().size()) {
+        ec = errors::make_error_code(
+            errors::error_code_enum::piece_invalid_index);
+        return {};
+    }
 
-    // which piece
-    uint32_t piece_index = 0;
+    if (is_choked) {
+        ec = interested_unchoke();
+        if (ec) return {};
+    }
 
     // which block in piece
     uint32_t block_index = 0;
     uint32_t block_offset = 0;           // begin
     uint32_t block_length = BLOCK_SIZE;  // length
 
-    // download first piece
+    // get piece length
     uint32_t piece_length = torrent.piece_length;
+    if (piece_index == pieces.size() - 1)
+        piece_length = torrent.length % torrent.piece_length;
+
     std::vector<uint8_t> piece_data(piece_length);
 
     while (block_index * BLOCK_SIZE < piece_length) {
+        // last block size
+        if (block_offset + BLOCK_SIZE > piece_length)
+            block_length = piece_length - block_offset;
+
         // make request
-        // std::cout << "make request with " << piece_index << " " <<
-        // block_offset
-        //           << " " << block_length << std::endl;
-        message =
+        auto message =
             Message::make_request(piece_index, block_offset, block_length);
         ec = send_message(message);
-        if (ec) return ec;
-        // std::cout << "sent request" << std::endl;
+        return {};
 
         // receive block piece
-        get_message = read_message_raw(ec);
-        if (get_message.has_value() == false) return ec;
+        auto get_message = read_message_raw(ec);
+        if (get_message.has_value() == false) return {};
         message = get_message.value();
-        // std::cout << "received message" << std::endl;
 
         // check message
         if (message.type == message_type::choke) break;
@@ -278,10 +321,6 @@ std::error_code Peer::download_file(Torrent const& torrent,
         }
 
         Block block = message.parse_block();
-        // std::cout << "received piece block: " << block.index << " "
-        //           << block.begin << std::endl;
-        // std::cout << "block length: " << block.data.size() << std::endl;
-        // std::cout << "piece length: " << piece_length << std::endl;
 
         std::copy(block.data.begin(), block.data.end(),
                   piece_data.begin() + block.begin);
@@ -299,20 +338,11 @@ std::error_code Peer::download_file(Torrent const& torrent,
                              torrent.pieces.begin() + (piece_index + 1) * 20);
 
     if (piece_hash != expected_piece_hash) {
-        std::cerr << "piece hash does not match" << std::endl;
+        ec = errors::make_error_code(errors::error_code_enum::piece_hash_mismatch);
+        return {};
     }
 
-    // write piece to file
-
-    std::ofstream file(file_path, std::ios::binary);
-    file.write(reinterpret_cast<char*>(piece_data.data()), piece_data.size());
-    file.close();
-
-    std::cout << "Piece 0 downloaded to " << file_path << std::endl;
-
-    return {};
+    return piece_data;
 }
-
-
 
 }  // namespace bittorrent

@@ -6,11 +6,12 @@
 #include "torrent.hpp"
 #include <cctype>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <system_error>
 #include <vector>
-#include <memory>
 
 using json = nlohmann::json;
 
@@ -72,7 +73,7 @@ static int handshake(std::string const& torrent_path, std::string const& peer) {
     std::string peer_port_str = peer.substr(peer.find(':') + 1);
     uint16_t peer_port = std::stoi(peer_port_str);
 
-    bittorrent::Peer p(peer_ip, peer_port);
+    bittorrent::Peer p(peer_ip, peer_port, torrent);
     ec = p.establish_connection();
     if (ec) {
         std::cerr << "Error establishing connection with peer: " << ec
@@ -90,7 +91,7 @@ static int handshake(std::string const& torrent_path, std::string const& peer) {
 }
 
 static int download_piece(std::string const& file_out,
-                          std::string const& torrent_path) {
+                          std::string const& torrent_path, size_t piece_index) {
     std::error_code ec;
     auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path, ec);
     if (get_torrent.has_value() == false) {
@@ -115,7 +116,8 @@ static int download_piece(std::string const& file_out,
         std::string peer_ip = peer.substr(0, peer.find(':'));
         std::string peer_port_str = peer.substr(peer.find(':') + 1);
 
-        peer_to_handshake = std::make_unique<bittorrent::Peer>(peer_ip, std::stoi(peer_port_str));
+        peer_to_handshake = std::make_unique<bittorrent::Peer>(
+            peer_ip, std::stoi(peer_port_str), torrent);
         bittorrent::Peer& p = *peer_to_handshake.value();
 
         // std::cout << "Trying to connect to peer " << p.ip_ << ":" << p.port_
@@ -142,14 +144,32 @@ static int download_piece(std::string const& file_out,
     }
 
     bittorrent::Peer& p = *peer_to_handshake.value();
-    // std::cout << "Connected to peer " << p.ip_ << ":" << p.port_ << std::endl;
-    ec = p.download_file(torrent, file_out);
+
+    ec = p.recv_bitfield();
     if (ec) {
-        std::cerr << strerror(errno) << std::endl;
-        std::cout << errno << std::endl;
-        std::cerr << "Error downloading file: " << ec << std::endl;
+        std::cerr << "Error receiving bitfield: " << ec << std::endl;
         return 1;
     }
+
+    ec = p.interested_unchoke();
+    if (ec) {
+        std::cerr << "Error sending interested and unchoke: " << ec
+                  << std::endl;
+        return 1;
+    }
+
+    std::vector<uint8_t> piece = p.download_piece(piece_index, ec);
+    if (ec) {
+        std::cerr << "Error downloading piece: " << ec << std::endl;
+        return 1;
+    }
+
+    std::ofstream file(file_out, std::ios::binary);
+    file.write(reinterpret_cast<char const*>(piece.data()), piece.size());
+    file.close();
+
+    std::cout << "Piece " << piece_index << " downloaded to " << file_out
+              << std::endl;
 
     return 0;
 }
@@ -219,13 +239,13 @@ int main(int argc, char* argv[]) {
     }
 
     else if (command == "download_piece") {
-        if (argc < 5) {
+        if (argc < 6) {
             std::cerr << "Usage: " << argv[0]
-                      << " download_piece -o <output_file> <torrent file>"
+                      << " download_piece -o <output_file> <torrent file> <piece_index>"
                       << std::endl;
             return 1;
         }
-        return download_piece(argv[3], argv[4]);
+        return download_piece(argv[3], argv[4], std::stoi(argv[5]));
     }
 
     else {
