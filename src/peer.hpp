@@ -34,6 +34,9 @@ class Peer {
     std::string ip_;
     uint16_t port_;
 
+    std::string peer_id;
+    std::vector<uint8_t> peer_id_raw;
+
     bool is_choked;
 
     Torrent const& torrent;

@@ -17,6 +17,7 @@ namespace bittorrent {
 using namespace std::string_literals;
 
 constexpr unsigned long BLOCK_SIZE = 16 * 1024;
+constexpr const char* PEER_ID = "00112233445566778899";
 
 // ===== Helper functions =====
 
@@ -119,7 +120,8 @@ std::error_code Peer::establish_connection() {
 
 std::error_code Peer::close_connection() { return closeSocket(); }
 
-static std::string parse_peer_id(std::string const& message) {
+static std::pair<std::string, std::vector<uint8_t>> parse_peer_id(
+    std::string const& message) {
     static std::string const header = "\x13"s +  // character 19
                                       "BitTorrent protocol"s +
                                       "\x00\x00\x00\x00\x00\x00\x00\x00"s;
@@ -132,13 +134,14 @@ static std::string parse_peer_id(std::string const& message) {
         ss << std::hex << std::setw(2) << std::setfill('0')
            << static_cast<int>(c);
     }
-    return ss.str();
+
+    return {ss.str(),
+            std::vector<uint8_t>(peer_id_raw.begin(), peer_id_raw.end())};
 }
 
 std::error_code Peer::handshake(std::vector<uint8_t> const& info_hash_raw) {
     // Send the message to server:
-    std::string message =
-        handshake_message(info_hash_raw, "00112233445566778899");
+    std::string message = handshake_message(info_hash_raw, PEER_ID);
 
     std::error_code ec = send_all(socket_fd, message.size(),
                                   reinterpret_cast<u_int8_t*>(message.data()));
@@ -151,8 +154,10 @@ std::error_code Peer::handshake(std::vector<uint8_t> const& info_hash_raw) {
     std::string response_str =
         std::string(reinterpret_cast<char*>(response), sizeof(response));
 
-    std::string peer_id = parse_peer_id(response_str);
-    // std::cout << "Peer ID: " << peer_id << std::endl;
+    auto [peer_id, peer_id_raw] = parse_peer_id(response_str);
+
+    this->peer_id = peer_id;
+    this->peer_id_raw = peer_id_raw;
 
     return {};
 }

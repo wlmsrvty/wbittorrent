@@ -87,6 +87,8 @@ static int handshake(std::string const& torrent_path, std::string const& peer) {
         return 1;
     }
 
+    std::cout << "Peer ID: " << p.peer_id << std::endl;
+
     return 0;
 }
 
