@@ -147,9 +147,6 @@ std::optional<TrackerInfo> Torrent::discover_peers(std::error_code& ec) const {
 
     TrackerInfo tracker_info =
         TrackerInfo::parse_tracker_response(tracker_response);
-    for (std::string const& peer : tracker_info.peers) {
-        std::cout << peer << std::endl;
-    }
 
     return tracker_info;
 }

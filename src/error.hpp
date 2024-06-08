@@ -35,6 +35,11 @@ enum class error_code_enum {
     peer_connect,
     peer_send,
     peer_recv,
+    // connection is not established
+    peer_no_connection,
+
+    message_type_not_handled,
+    message_expected_bitfield,
 
     parse_torrent
 };
