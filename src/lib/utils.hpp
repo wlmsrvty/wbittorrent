@@ -1,6 +1,5 @@
 #pragma once
 
-#include "sha1.h"
 #include <cstdint>
 #include <iomanip>
 #include <sstream>
