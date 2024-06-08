@@ -16,7 +16,7 @@ namespace bittorrent {
 
 using namespace std::string_literals;
 
-constexpr unsigned long BLOCK_SIZE = 16 * 1024 / 2;
+constexpr unsigned long BLOCK_SIZE = 16 * 1024;
 
 // ===== Helper functions =====
 
@@ -294,9 +294,16 @@ std::vector<uint8_t> Peer::download_piece(size_t piece_index,
     if (piece_index == pieces.size() - 1)
         piece_length = torrent.length % torrent.piece_length;
 
+    // std::cout << "Piece length: " << piece_length << std::endl;
+
     std::vector<uint8_t> piece_data(piece_length);
 
     while (block_index * BLOCK_SIZE < piece_length) {
+        // std::cout << "Downloading piece " << piece_index << " block "
+        //           << block_index << std::endl;
+        // std::cout << "block_offset: " << block_offset << std::endl;
+        // std::cout << "block length: " << block_length << std::endl;
+
         // last block size
         if (block_offset + BLOCK_SIZE > piece_length)
             block_length = piece_length - block_offset;
@@ -305,7 +312,7 @@ std::vector<uint8_t> Peer::download_piece(size_t piece_index,
         auto message =
             Message::make_request(piece_index, block_offset, block_length);
         ec = send_message(message);
-        return {};
+        if (ec) return {};
 
         // receive block piece
         auto get_message = read_message_raw(ec);
@@ -338,7 +345,8 @@ std::vector<uint8_t> Peer::download_piece(size_t piece_index,
                              torrent.pieces.begin() + (piece_index + 1) * 20);
 
     if (piece_hash != expected_piece_hash) {
-        ec = errors::make_error_code(errors::error_code_enum::piece_hash_mismatch);
+        ec = errors::make_error_code(
+            errors::error_code_enum::piece_hash_mismatch);
         return {};
     }
 
