@@ -19,5 +19,12 @@ FetchContent_MakeAvailable(httplib)
 target_link_libraries(${BITTORRENT_LIB_NAME} httplib)
 
 
-find_package(spdlog REQUIRED)
+Include(FetchContent)
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.x
+)
+FetchContent_MakeAvailable(spdlog)
+
 target_link_libraries(${BITTORRENT_LIB_NAME} spdlog::spdlog $<$<BOOL:${MINGW}>:ws2_32>)

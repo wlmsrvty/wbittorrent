@@ -6,7 +6,7 @@ project(
   DESCRIPTION "Own bittorrent implementation"
   LANGUAGES CXX)
 
-add_compile_options(-Wall -Wextra -pedantic -Werror)
+add_compile_options(-Wall -Wextra -pedantic)
 
 option(BUILD_TESTS "Build test programs" OFF)
 
