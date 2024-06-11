@@ -1,7 +1,6 @@
 #include "bencode.hpp"
 #include "error.hpp"
 #include "lib/nlohmann/json.hpp"
-#include "lib/nonstd/expected.hpp"
 #include "peer.hpp"
 #include "spdlog/spdlog.h"
 #include "torrent.hpp"

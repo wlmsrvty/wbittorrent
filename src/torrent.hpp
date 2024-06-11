@@ -2,7 +2,6 @@
 
 #include "error.hpp"
 #include "lib/nlohmann/json.hpp"
-#include "lib/nonstd/expected.hpp"
 #include "tracker_info.hpp"
 #include "peer.hpp"
 #include <filesystem>

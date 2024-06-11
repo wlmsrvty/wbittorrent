@@ -2,7 +2,6 @@
 
 #include "error.hpp"
 #include "lib/nlohmann/json.hpp"
-#include "lib/nonstd/expected.hpp"
 
 namespace bittorrent {
 class Bencode {
