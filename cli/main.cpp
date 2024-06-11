@@ -3,6 +3,7 @@
 #include "lib/nlohmann/json.hpp"
 #include "lib/nonstd/expected.hpp"
 #include "peer.hpp"
+#include "spdlog/spdlog.h"
 #include "torrent.hpp"
 #include <cctype>
 #include <cstdlib>
@@ -18,11 +19,11 @@ using json = nlohmann::json;
 static int torrent_info(std::string const& file_path) {
     std::error_code ec;
     auto get_torrent = bittorrent::Torrent::parse_torrent(file_path, ec);
-    if (get_torrent.has_value() == false) {
+    if (!get_torrent) {
         std::cerr << "Error parsing torrent: " << ec << std::endl;
         return 1;
     }
-    auto torrent = get_torrent.value();
+    bittorrent::Torrent const& torrent = *get_torrent;
     std::cout << "Tracker URL: " << torrent.announce << std::endl;
     std::cout << "Length: " << torrent.length << std::endl;
     std::cout << "Info Hash: " << torrent.info_hash() << std::endl;
@@ -45,11 +46,11 @@ static int torrent_info(std::string const& file_path) {
 static int discover_peers(std::string const& file_path) {
     std::error_code ec;
     auto torrent = bittorrent::Torrent::parse_torrent(file_path, ec);
-    if (torrent.has_value() == false) {
+    if (!torrent) {
         std::cerr << "Error parsing torrent: " << ec << std::endl;
         return 1;
     }
-    auto get_tracker_info = torrent.value().discover_peers(ec);
+    auto get_tracker_info = torrent->discover_peers(ec);
     bittorrent::TrackerInfo tracker_info = get_tracker_info.value();
     for (std::string const& peer : tracker_info.peers) {
         std::cout << peer << std::endl;
@@ -64,11 +65,11 @@ static int discover_peers(std::string const& file_path) {
 static int handshake(std::string const& torrent_path, std::string const& peer) {
     std::error_code ec;
     auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path, ec);
-    if (get_torrent.has_value() == false) {
+    if (!get_torrent) {
         std::cerr << "Error parsing torrent: " << ec << std::endl;
         return 1;
     }
-    auto torrent = get_torrent.value();
+    bittorrent::Torrent const& torrent = *get_torrent;
     std::string peer_ip = peer.substr(0, peer.find(':'));
     std::string peer_port_str = peer.substr(peer.find(':') + 1);
     uint16_t peer_port = std::stoi(peer_port_str);
@@ -92,24 +93,18 @@ static int handshake(std::string const& torrent_path, std::string const& peer) {
     return 0;
 }
 
-static int download_piece(std::string const& file_out,
-                          std::string const& torrent_path, size_t piece_index) {
+static std::optional<std::unique_ptr<bittorrent::Peer>> try_peer(
+    bittorrent::Torrent const& torrent) {
     std::error_code ec;
-    auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path, ec);
-    if (get_torrent.has_value() == false) {
-        std::cerr << "Error parsing torrent: " << ec << std::endl;
-        return 1;
-    }
-    bittorrent::Torrent torrent = get_torrent.value();
     auto get_tracker_info = torrent.discover_peers(ec);
     if (ec) {
         std::cerr << "Error discovering peers: " << ec << std::endl;
-        return 1;
+        return {};
     }
     bittorrent::TrackerInfo tracker_info = get_tracker_info.value();
     if (tracker_info.peers.size() == 0) {
         std::cerr << "No peers found" << std::endl;
-        return 1;
+        return {};
     }
 
     // get a peer to handshake
@@ -121,9 +116,6 @@ static int download_piece(std::string const& file_out,
         peer_to_handshake = std::make_unique<bittorrent::Peer>(
             peer_ip, std::stoi(peer_port_str), torrent);
         bittorrent::Peer& p = *peer_to_handshake.value();
-
-        // std::cout << "Trying to connect to peer " << p.ip_ << ":" << p.port_
-        //           << std::endl;
 
         ec = p.establish_connection();
         if (ec) {
@@ -140,6 +132,37 @@ static int download_piece(std::string const& file_out,
         break;
     }
 
+    if (!peer_to_handshake.has_value()) {
+        std::cerr << "Could not connect to any peers" << std::endl;
+        return {};
+    }
+
+    return peer_to_handshake;
+}
+
+static int download_piece(std::string const& file_out,
+                          std::string const& torrent_path, size_t piece_index) {
+    std::error_code ec;
+    auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path, ec);
+    if (!get_torrent) {
+        std::cerr << "Error parsing torrent: " << ec << std::endl;
+        return 1;
+    }
+    bittorrent::Torrent const& torrent = *get_torrent;
+    auto get_tracker_info = torrent.discover_peers(ec);
+    if (ec) {
+        std::cerr << "Error discovering peers: " << ec << std::endl;
+        return 1;
+    }
+    bittorrent::TrackerInfo tracker_info = get_tracker_info.value();
+    if (tracker_info.peers.size() == 0) {
+        std::cerr << "No peers found" << std::endl;
+        return 1;
+    }
+
+    // get a peer to handshake
+    std::optional<std::unique_ptr<bittorrent::Peer>> peer_to_handshake =
+        try_peer(torrent);
     if (!peer_to_handshake.has_value()) {
         std::cerr << "Could not connect to any peers" << std::endl;
         return 1;
@@ -170,15 +193,43 @@ static int download_piece(std::string const& file_out,
     file.write(reinterpret_cast<char const*>(piece.data()), piece.size());
     file.close();
 
-    std::cout << "Piece " << piece_index << " downloaded to " << file_out
+    std::cout << "Downloaded piece " << piece_index << " to " << file_out
+              << std::endl;
+
+    return 0;
+}
+
+static int download_file(std::string const& file_out,
+                         std::string const& torrent_path) {
+    spdlog::debug("cli: downloading file");
+    std::error_code ec;
+
+    auto get_torrent = bittorrent::Torrent::parse_torrent(torrent_path, ec);
+    if (!get_torrent) {
+        std::cerr << "Error parsing torrent: " << ec << std::endl;
+        return 1;
+    }
+    bittorrent::Torrent& torrent = *get_torrent;
+
+    spdlog::debug("cli: torrent parsed");
+    ec = torrent.download_file(file_out);
+    if (ec) {
+        std::cerr << "Error downloading file: " << ec << std::endl;
+        return 1;
+    }
+
+    std::cout << "Downloaded " << torrent_path << " to " << file_out << "."
               << std::endl;
 
     return 0;
 }
 
 int main(int argc, char* argv[]) {
+    // Enable debug logging:
+    // spdlog::set_level(spdlog::level::debug);
+
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " decode <encoded_value>"
+        std::cerr << "Usage: \t" << argv[0] << " decode <encoded_value>"
                   << std::endl;
         std::cerr << "\t " << argv[0] << " info <torrent file>" << std::endl;
         std::cerr << "\t " << argv[0] << " peers <torrent file>" << std::endl;
@@ -188,6 +239,8 @@ int main(int argc, char* argv[]) {
         std::cerr << "\t " << argv[0]
                   << " download_piece -o <output_file> <torrent file>"
                   << std::endl;
+        std::cerr << "\t " << argv[0]
+                  << " download -o <output_file> <torrent file>" << std::endl;
         return 1;
     }
 
@@ -243,11 +296,22 @@ int main(int argc, char* argv[]) {
     else if (command == "download_piece") {
         if (argc < 6) {
             std::cerr << "Usage: " << argv[0]
-                      << " download_piece -o <output_file> <torrent file> <piece_index>"
+                      << " download_piece -o <output_file> <torrent file> "
+                         "<piece_index>"
                       << std::endl;
             return 1;
         }
         return download_piece(argv[3], argv[4], std::stoi(argv[5]));
+    }
+
+    else if (command == "download") {
+        if (argc < 5) {
+            std::cerr << "Usage: " << argv[0]
+                      << " download -o <output_file> <torrent file>"
+                      << std::endl;
+            return 1;
+        }
+        return download_file(argv[3], argv[4]);
     }
 
     else {

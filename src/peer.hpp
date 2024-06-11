@@ -1,7 +1,6 @@
 #pragma once
 
 #include "message.hpp"
-#include "torrent.hpp"
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -10,8 +9,11 @@
 
 namespace bittorrent {
 
+class Torrent;
+
 class Peer {
    public:
+   Peer() = default;
     Peer(std::string ip, uint16_t port, Torrent const& torrent);
     ~Peer();
 

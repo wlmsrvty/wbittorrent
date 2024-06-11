@@ -44,6 +44,8 @@ enum class error_code_enum {
     piece_invalid_index,
     piece_hash_mismatch,
 
+    torrent_download_file_no_peers,
+
     parse_torrent
 };
 

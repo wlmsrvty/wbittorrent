@@ -17,3 +17,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(httplib)
 target_link_libraries(${BITTORRENT_LIB_NAME} httplib)
+
+
+find_package(spdlog REQUIRED)
+target_link_libraries(${BITTORRENT_LIB_NAME} spdlog::spdlog $<$<BOOL:${MINGW}>:ws2_32>)

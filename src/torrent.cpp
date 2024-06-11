@@ -4,7 +4,10 @@
 #include "httplib.h"
 #include "lib/sha1.hpp"
 #include "lib/utils.hpp"
+#include "peer.hpp"
+#include "spdlog/spdlog.h"
 #include "tracker_info.hpp"
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -13,7 +16,7 @@
 
 namespace bittorrent {
 
-std::optional<Torrent> Torrent::parse_torrent(
+std::unique_ptr<Torrent> Torrent::parse_torrent(
     std::filesystem::path const& file_path, std::error_code& ec) {
     // parsing metainfo torrent
     // https://www.bittorrent.org/beps/bep_0003.html#metainfo-files
@@ -31,12 +34,12 @@ std::optional<Torrent> Torrent::parse_torrent(
     if (ec) return {};
     auto dict = encoded_value;
 
-    Torrent torrent;
-    torrent.announce = dict["announce"];
-    torrent.length = dict["info"]["length"];
-    torrent.name = dict["info"]["name"];
-    torrent.piece_length = dict["info"]["piece length"];
-    torrent.pieces = dict["info"]["pieces"];
+    std::unique_ptr<Torrent> torrent = std::make_unique<Torrent>();
+    torrent->announce = dict["announce"];
+    torrent->length = dict["info"]["length"];
+    torrent->name = dict["info"]["name"];
+    torrent->piece_length = dict["info"]["piece length"];
+    torrent->pieces = dict["info"]["pieces"];
 
     return torrent;
 }
@@ -93,6 +96,8 @@ std::vector<std::string> Torrent::piece_hashes() const {
 }
 
 std::optional<TrackerInfo> Torrent::discover_peers(std::error_code& ec) const {
+    spdlog::debug("Discovering peers from tracker: {}", announce);
+
     static std::regex const re(
         R"(^((?:(https?):)?(?://([^:/?#]*)(?::(\d+))?)?)(([^?#]*(?:\?[^#]*)?)(?:#.*)?))");
     std::smatch matches;
@@ -142,13 +147,113 @@ std::optional<TrackerInfo> Torrent::discover_peers(std::error_code& ec) const {
         return {};
     }
 
+    spdlog::debug("Torrent: Tracker response: {}", res->body);
+
     auto tracker_response = Bencode::decode_bencoded_value(res->body, ec);
     if (ec) return {};
 
     TrackerInfo tracker_info =
         TrackerInfo::parse_tracker_response(tracker_response);
+    
+    spdlog::debug("Torrent: Number of peers: {}", tracker_info.peers.size());
 
     return tracker_info;
+}
+
+void Torrent::connect_peers() {
+    spdlog::debug("Torrent: Connecting to peers");
+    std::error_code ec;
+
+    std::optional<TrackerInfo> tracker_info = discover_peers(ec);
+    if (tracker_info.has_value() == false) return;
+
+    TrackerInfo info = tracker_info.value();
+
+    std::vector<uint8_t> digest = info_hash_raw();
+
+    for (std::string const& peer : info.peers) {
+        std::string peer_ip = peer.substr(0, peer.find(':'));
+        std::string peer_port_str = peer.substr(peer.find(':') + 1);
+
+        std::unique_ptr<Peer> p = std::make_unique<bittorrent::Peer>(
+            peer_ip, std::stoi(peer_port_str), *this);
+
+        ec = p->establish_connection();
+        if (ec) continue;
+
+        ec = p->handshake(digest);
+        if (ec) continue;
+
+        ec = p->recv_bitfield();
+        if (ec) continue;
+
+        ec = p->interested_unchoke();
+        if (ec) continue;
+
+        spdlog::debug("Torrent: Peer connected: {}", peer);
+        peers.push_back(std::move(p));
+    }
+
+    return;
+}
+
+std::vector<Torrent::piece> Torrent::compute_pieces_to_download(
+    std::string const& out_file_path) {
+    std::vector<piece> result;
+    std::vector<std::string> hashes = piece_hashes();
+
+    // file does not exist, all pieces must be downloaded
+    if (!std::filesystem::exists(out_file_path)) {
+        for (size_t i = 0; i < hashes.size(); i++)
+            result.push_back(
+                {i, std::vector<uint8_t>(hashes[i].begin(), hashes[i].end())});
+        return result;
+    }
+
+    // TODO:
+    // file exists, check pieces that exists in the file
+    // std::ifstream f(out_file_path, std::ios::binary);
+    // size_t piece_index = 0;
+    // std::vector<uint8_t> buffer;
+    // buffer.reserve(piece_length);
+
+    // for now, request to ALWAYS download all pieces
+    for (size_t i = 0; i < hashes.size(); i++) {
+        result.push_back(
+            {i, std::vector<uint8_t>(hashes[i].begin(), hashes[i].end())});
+    }
+
+    return result;
+}
+
+std::error_code Torrent::download_file(std::string const& out_file_path) {
+    if (peers.size() == 0) {
+        spdlog::debug("Torrent: searching peers");
+        connect_peers();
+        spdlog::debug("Torrent: searching peers done, number of peers: {}",
+                      peers.size());
+        if (peers.size() == 0) {
+            std::error_code ec = errors::make_error_code(
+                errors::error_code_enum::torrent_download_file_no_peers);
+            return ec;
+        }
+    }
+
+    std::vector<Torrent::piece> pieces_to_download =
+        compute_pieces_to_download(out_file_path);
+
+    std::error_code ec;
+
+    Peer& p = *peers[0];
+    std::ofstream f(out_file_path, std::ios::binary);
+    for (size_t i = 0; i < pieces_to_download.size(); i++) {
+        std::vector<uint8_t> piece_data =
+            p.download_piece(pieces_to_download[i].first, ec);
+        if (ec) return ec;
+        f.write(reinterpret_cast<char*>(piece_data.data()), piece_data.size());
+    }
+
+    return {};
 }
 
 }  // namespace bittorrent

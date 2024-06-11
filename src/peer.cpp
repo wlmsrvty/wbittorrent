@@ -2,6 +2,8 @@
 #include "error.hpp"
 #include "lib/utils.hpp"
 #include "message.hpp"
+#include "spdlog/spdlog.h"
+#include "torrent.hpp"
 #include <arpa/inet.h>
 #include <fstream>
 #include <iomanip>
@@ -17,7 +19,7 @@ namespace bittorrent {
 using namespace std::string_literals;
 
 constexpr unsigned long BLOCK_SIZE = 16 * 1024;
-constexpr const char* PEER_ID = "00112233445566778899";
+constexpr char const* PEER_ID = "00112233445566778899";
 
 // ===== Helper functions =====
 
@@ -299,6 +301,8 @@ std::vector<uint8_t> Peer::download_piece(size_t piece_index,
     if (piece_index == pieces.size() - 1)
         piece_length = torrent.length % torrent.piece_length;
 
+    spdlog::debug("Peer {}: Downloading piece {}, piece_length {}", ip_, piece_index, piece_length);
+
     // std::cout << "Piece length: " << piece_length << std::endl;
 
     std::vector<uint8_t> piece_data(piece_length);
@@ -334,6 +338,8 @@ std::vector<uint8_t> Peer::download_piece(size_t piece_index,
 
         Block block = message.parse_block();
 
+        spdlog::debug("Peer {}: Piece {}, block {}, block length {}, downloaded", ip_, piece_index,
+                      block_index, block_length);
         std::copy(block.data.begin(), block.data.end(),
                   piece_data.begin() + block.begin);
 
@@ -354,6 +360,8 @@ std::vector<uint8_t> Peer::download_piece(size_t piece_index,
             errors::error_code_enum::piece_hash_mismatch);
         return {};
     }
+
+    spdlog::debug("Peer {}: Piece {} downloaded", ip_, piece_index);
 
     return piece_data;
 }
