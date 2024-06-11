@@ -4,6 +4,7 @@
 <p align="center"><i>small logo created with Midjourney</i></p>
 
 # wBittorrent
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/wlmsrvty/wbittorrent/build.yml)
 
 A (very) basic BitTorrent client CLI written in C++. It implements from scratch parts of the [BitTorrent protocol](https://www.bittorrent.org/beps/bep_0003.html).
 
