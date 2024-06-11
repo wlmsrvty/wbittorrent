@@ -10,13 +10,13 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(bencode_test bencode_decode_test.cpp)
 target_compile_features(bencode_test PRIVATE cxx_std_20)
-target_link_libraries(bencode_test PRIVATE ${BITTORRENT_LIB_NAME})
+target_link_libraries(bencode_test PRIVATE bittorrent_library)
 target_link_libraries(bencode_test PRIVATE Catch2::Catch2WithMain)
 add_test(NAME bencode_decode_test COMMAND bencode_test)
 
 add_executable(bencode_encode_test bencode_encode_test.cpp)
 target_compile_features(bencode_encode_test PRIVATE cxx_std_20)
-target_link_libraries(bencode_encode_test PRIVATE ${BITTORRENT_LIB_NAME})
+target_link_libraries(bencode_encode_test PRIVATE bittorrent_library)
 target_link_libraries(bencode_encode_test PRIVATE Catch2::Catch2WithMain)
 add_test(NAME bencode_encode_test COMMAND bencode_encode_test)
 

@@ -3,10 +3,10 @@ file (GLOB_RECURSE SOURCES
     "*.hpp"
 )
 
-add_library(${BITTORRENT_LIB_NAME}
+add_library(bittorrent_library
     ${SOURCES})
 
-target_include_directories(${BITTORRENT_LIB_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(bittorrent_library PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # httplib
 Include(FetchContent)
@@ -16,7 +16,7 @@ FetchContent_Declare(
     GIT_TAG        v0.15.3
 )
 FetchContent_MakeAvailable(httplib)
-target_link_libraries(${BITTORRENT_LIB_NAME} httplib)
+target_link_libraries(bittorrent_library httplib)
 
 
 Include(FetchContent)
@@ -27,4 +27,4 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-target_link_libraries(${BITTORRENT_LIB_NAME} spdlog::spdlog $<$<BOOL:${MINGW}>:ws2_32>)
+target_link_libraries(bittorrent_library spdlog::spdlog $<$<BOOL:${MINGW}>:ws2_32>)

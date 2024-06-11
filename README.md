@@ -1,35 +1,45 @@
-[![progress-banner](https://backend.codecrafters.io/progress/bittorrent/aff6ffe3-2b38-425d-a3e8-ae4d51d5c20f)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+<p align="center">
+  <img width="200" height="200" src="https://github.com/wlmsrvty/ownbittorrent/assets/73073487/b220acb8-1c7e-4982-bb4c-9df44b69bcd6">
+</p>
+<p align="center"><i>small logo created with Midjourney</i></p>
 
-This is a starting point for C++ solutions to the
-["Build Your Own BitTorrent" Challenge](https://app.codecrafters.io/courses/bittorrent/overview).
+# wBittorrent
 
-In this challenge, you’ll build a BitTorrent client that's capable of parsing a
-.torrent file and downloading a file from a peer. Along the way, we’ll learn
-about how torrent files are structured, HTTP trackers, BitTorrent’s Peer
-Protocol, pipelining and more.
+A (very) basic BitTorrent client CLI written in C++. It implements from scratch parts of the [BitTorrent protocol](https://www.bittorrent.org/beps/bep_0003.html).
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+For now, it only supports downloading a single file from a single peer. It does not support seeding and it uses a naive strategy for piece selection (downloading pieces in order).
 
-# Passing the first stage
+What it currently does:
 
-The entry point for your BitTorrent implementation is in `src/Main.cpp`. Study
-and uncomment the relevant code, and push your changes to pass the first stage:
+- bencode
+- .torrent file parsing
+- peers discovery via tracker (HTTP)
+- peer handshake and communication (TCP) for downloading pieces
+
+## Usage
 
 ```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
+./bittorrent info <torrent file>
+./bittorrent peers <torrent file>
+./bittorrent download_piece -o <output_file> <torrent file>
+./bittorrent download -o <output_file> <torrent file>
 ```
 
-Time to move on to the next stage!
+## Build
 
-# Stage 2 & beyond
+```bash
+# building
+cmake . -B build
+cmake --build build
 
-Note: This section is for stages 2 and beyond.
+# building with tests and debug
+cmake . -B build -DBUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --target test
+```
 
-1. Ensure you have `cmake` installed locally
-1. Run `./your_bittorrent.sh` to run your program, which is implemented in
-   `src/Main.cpp`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+## Resources used
+
+- [CodeCrafters BitTorrent challenge](https://app.codecrafters.io/courses/bittorrent/overview)
+- [BitTorrent protocol specification](https://www.bittorrent.org/beps/bep_0003.html)
+- [theory.org wiki BitTorrent page](https://wiki.theory.org/BitTorrentSpecification)
+

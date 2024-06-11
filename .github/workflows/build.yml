@@ -1,0 +1,35 @@
+name: Build
+on:
+  push:
+jobs:
+  build-project:
+    name: Build Project
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.6
+
+      - name: Configure and Build Project
+        uses: threeal/cmake-action@main
+        with:
+          options: BUILD_TESTS=ON
+
+      - uses: actions/upload-artifact@master
+        with:
+          name: build-artifact
+          path: build
+
+  test-project:
+    name: Test Project
+    runs-on: ubuntu-22.04
+    needs: build-project
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.6
+
+      - uses: actions/download-artifact@master
+        with:
+          name: build-artifact
+          path: build
+      - run: chmod +x build/bittorrent build/tests/bencode_test build/tests/bencode_encode_test
+      - run: cd build && ctest --output-on-failure

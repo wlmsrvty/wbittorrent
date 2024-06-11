@@ -228,7 +228,7 @@ int main(int argc, char* argv[]) {
     // spdlog::set_level(spdlog::level::debug);
 
     if (argc < 2) {
-        std::cerr << "Usage: \t" << argv[0] << " decode <encoded_value>"
+        std::cerr << "Usage: \t " << argv[0] << " decode <encoded_value>"
                   << std::endl;
         std::cerr << "\t " << argv[0] << " info <torrent file>" << std::endl;
         std::cerr << "\t " << argv[0] << " peers <torrent file>" << std::endl;

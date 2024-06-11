@@ -12,9 +12,6 @@ option(BUILD_TESTS "Build test programs" OFF)
 
 set(CMAKE_CXX_STANDARD 20) # Enable the C++20 standard
 
-# set the bittorrent library name
-set(BITTORRENT_LIB_NAME bittorrent_library)
-
 include(FetchContent)
 
 # bittorrent library
